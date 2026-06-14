@@ -3,7 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 type Medium = "Threads" | "Substack" | "note" | "X" | "生配信" | "その他";
 type Tension = "なし" | "少し" | "かなり";
 type Revisit = "はい" | "どちらともいえない" | "いいえ";
-type View = "list" | "new" | "detail" | "dashboard";
+type View = "list" | "form" | "detail" | "dashboard";
 
 type InteractionLog = {
   id: string;
@@ -23,6 +23,8 @@ type InteractionLog = {
   createdAt: string;
 };
 
+type InteractionForm = Omit<InteractionLog, "id" | "createdAt">;
+
 const STORAGE_KEY = "koryu-log-labo-entries";
 
 const media: Medium[] = ["Threads", "Substack", "note", "X", "生配信", "その他"];
@@ -31,7 +33,7 @@ const revisits: Revisit[] = ["はい", "どちらともいえない", "いいえ
 
 const today = new Date().toISOString().slice(0, 10);
 
-const emptyForm: Omit<InteractionLog, "id" | "createdAt"> = {
+const emptyForm: InteractionForm = {
   date: today,
   name: "",
   medium: "Threads",
@@ -69,10 +71,11 @@ const sampleEntries: InteractionLog[] = [
 
 function App() {
   const [entries, setEntries] = useState<InteractionLog[]>(() => loadEntries());
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<InteractionForm>(emptyForm);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<View>("list");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
@@ -92,9 +95,35 @@ function App() {
   }, [entries, query]);
 
   const dashboard = useMemo(() => buildDashboard(entries), [entries]);
+  const isEditing = editingId !== null;
+
+  function startNewEntry() {
+    setEditingId(null);
+    setSelectedId(null);
+    setForm({ ...emptyForm, date: today });
+    setView("form");
+  }
+
+  function startEditEntry(entry: InteractionLog) {
+    const { id: _id, createdAt: _createdAt, ...editableValues } = entry;
+    setEditingId(entry.id);
+    setSelectedId(entry.id);
+    setForm(editableValues);
+    setView("form");
+  }
 
   function submitEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (editingId) {
+      setEntries((current) =>
+        current.map((entry) => (entry.id === editingId ? { ...entry, ...form } : entry)),
+      );
+      setSelectedId(editingId);
+      setEditingId(null);
+      setView("detail");
+      return;
+    }
 
     const nextEntry: InteractionLog = {
       ...form,
@@ -103,18 +132,27 @@ function App() {
     };
 
     setEntries((current) => [nextEntry, ...current]);
+    setSelectedId(nextEntry.id);
     setForm({ ...emptyForm, date: today });
-    setView("list");
+    setView("detail");
+  }
+
+  function cancelForm() {
+    setForm({ ...emptyForm, date: today });
+    setEditingId(null);
+    setView(selectedId ? "detail" : "list");
   }
 
   function openDetail(id: string) {
     setSelectedId(id);
+    setEditingId(null);
     setView("detail");
   }
 
   function deleteEntry(id: string) {
     setEntries((current) => current.filter((entry) => entry.id !== id));
     setSelectedId(null);
+    setEditingId(null);
     setView("list");
   }
 
@@ -139,7 +177,7 @@ function App() {
         <button className={view === "list" ? "active" : ""} onClick={() => setView("list")}>
           一覧
         </button>
-        <button className={view === "new" ? "active" : ""} onClick={() => setView("new")}>
+        <button className={view === "form" && !isEditing ? "active" : ""} onClick={startNewEntry}>
           記録する
         </button>
         <button
@@ -158,7 +196,7 @@ function App() {
                 <p className="eyebrow">Log</p>
                 <h2>交流一覧</h2>
               </div>
-              <button className="primary-button" onClick={() => setView("new")}>
+              <button className="primary-button" onClick={startNewEntry}>
                 新しく記録
               </button>
             </div>
@@ -184,6 +222,11 @@ function App() {
                     </span>
                     <p>{shorten(entry.impression || entry.memo || "印象メモはまだありません。")}</p>
                   </button>
+                  <div className="entry-actions">
+                    <button className="ghost-button small-button" onClick={() => startEditEntry(entry)}>
+                      編集
+                    </button>
+                  </div>
                 </article>
               ))}
               {filteredEntries.length === 0 && (
@@ -211,12 +254,12 @@ function App() {
         </section>
       )}
 
-      {view === "new" && (
+      {view === "form" && (
         <section className="panel">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">New note</p>
-              <h2>交流を記録する</h2>
+              <p className="eyebrow">{isEditing ? "Edit note" : "New note"}</p>
+              <h2>{isEditing ? "交流を編集する" : "交流を記録する"}</h2>
             </div>
           </div>
 
@@ -322,11 +365,11 @@ function App() {
             />
 
             <div className="form-actions">
-              <button type="button" className="ghost-button" onClick={() => setView("list")}>
+              <button type="button" className="ghost-button" onClick={cancelForm}>
                 戻る
               </button>
               <button className="primary-button" type="submit">
-                保存する
+                {isEditing ? "更新する" : "保存する"}
               </button>
             </div>
           </form>
@@ -340,9 +383,14 @@ function App() {
               <p className="eyebrow">Detail</p>
               <h2>{selectedEntry.name}</h2>
             </div>
-            <button className="ghost-button" onClick={() => setView("list")}>
-              一覧へ
-            </button>
+            <div className="detail-actions">
+              <button className="ghost-button" onClick={() => startEditEntry(selectedEntry)}>
+                編集
+              </button>
+              <button className="ghost-button" onClick={() => setView("list")}>
+                一覧へ
+              </button>
+            </div>
           </div>
 
           <div className="detail-meta">
