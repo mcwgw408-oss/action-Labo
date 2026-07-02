@@ -69,6 +69,34 @@ const sampleEntries: InteractionLog[] = [
   },
 ];
 
+
+const globalNavLinks = [
+  { label: '🏠 ダッシュボード', href: 'https://mcwgw408-oss.github.io/operation-dashboard/' },
+  { label: 'Substack-Labo', href: 'https://mcwgw408-oss.github.io/substack-labo/' },
+  { label: 'Discovery-Labo', href: 'https://mcwgw408-oss.github.io/discovery-Labo/' },
+  { label: '交流ログ', href: 'https://mcwgw408-oss.github.io/action-Labo/', current: true },
+  { label: '発信観察', href: 'https://mcwgw408-oss.github.io/observation-Labo/' },
+  { label: 'ストック管理', href: 'https://mcwgw408-oss.github.io/Stock-Labo/' },
+];
+
+function GlobalNav() {
+  return (
+    <nav className="global-nav" aria-label="アプリ切り替え">
+      {globalNavLinks.map((link) =>
+        link.current ? (
+          <span className="global-nav-link current" aria-current="page" key={link.label}>
+            {link.label}
+          </span>
+        ) : (
+          <a className="global-nav-link" href={link.href} key={link.label}>
+            {link.label}
+          </a>
+        ),
+      )}
+    </nav>
+  );
+}
+
 function App() {
   const [entries, setEntries] = useState<InteractionLog[]>(() => loadEntries());
   const [form, setForm] = useState<InteractionForm>(emptyForm);
@@ -158,6 +186,7 @@ function App() {
 
   return (
     <main className="app-shell">
+      <GlobalNav />
       <header className="hero">
         <div>
           <p className="eyebrow">交流ログLabo</p>
